@@ -1,3 +1,5 @@
+// backend/prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,22 +9,61 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  ADMIN
+  USER
+}
+
+enum Environment {
+  PRODUCCION
+  DESARROLLO
+  PERSONAL
+}
+
 model User {
-  id            String     @id @default(uuid())
-  email         String     @unique
-  passwordHash  String     
-  role          String     @default("USER") 
-  secrets       Secret[]
-  createdAt     DateTime   @default(now())
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String? // Opcional porque los usuarios de Google no tendrán contraseña local, pero útil para registros manuales con bcrypt
+  role         Role     @default(USER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  secrets   Secret[]
+  auditLogs AuditLog[]
 }
 
 model Secret {
-  id                String   @id @default(uuid())
-  title             String
-  environment       String   
-  category          String
-  encryptedPassword String   
-  ownerId           String
-  owner             User     @relation(fields: [ownerId], references: [id])
-  createdAt         DateTime @default(now())
+  id          String      @id @default(uuid())
+  title       String
+  environment Environment @default(PRODUCCION)
+  url         String?
+
+  encryptedData String
+  iv            String // Vector de Inicialización: Crítico para la seguridad de AES-256
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String // Ej. "CREATE_SECRET", "READ_SECRET", "LOGIN_FAILED"
+  ipAddress String // Vital para rastrear el origen de la petición
+  userAgent String? // Navegador/Dispositivo desde el que se accedió
+  details   String? // Detalles adicionales en formato JSON (opcional)
+  createdAt DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  secretId String?
+  secret   Secret? @relation(fields: [secretId], references: [id], onDelete: SetNull)
 }

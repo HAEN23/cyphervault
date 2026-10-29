@@ -1,8 +1,17 @@
 "use client";
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Shield, AlertTriangle, Lock, Activity, Plus, LogOut, X, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import SecretCard from '@/components/SecretCard';
 import { useSession, signIn, signOut } from 'next-auth/react';
+
+interface VaultSecret {
+  id: string;
+  title: string;
+  environment: string;
+  password: string;
+  url?: string | null;
+  createdAt: string;
+}
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -13,8 +22,78 @@ export default function Dashboard() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  const [environment, setEnvironment] = useState('PRODUCCION');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const secretos: any[] = []; 
+  const [secretos, setSecretos] = useState<VaultSecret[]>([]);
+
+  const fetchSecrets = useCallback(async () => {
+    const userId = session?.user?.email;
+    if (!userId) return;
+
+    const res = await fetch(`http://localhost:3001/api/secrets?userId=${encodeURIComponent(userId)}`);
+    const data = await res.json() as { secrets?: VaultSecret[]; error?: string };
+
+    if (!res.ok) {
+      throw new Error(data.error || 'No se pudieron cargar las credenciales');
+    }
+    if (!Array.isArray(data.secrets)) {
+      throw new Error('El servidor devolvió una lista de credenciales inválida');
+    }
+
+    setSecretos(data.secrets);
+  }, [session?.user?.email]);
+
+  useEffect(() => {
+    if (!session?.user?.email) return;
+
+    fetchSecrets().catch((error: unknown) => {
+      console.error('Error al cargar las credenciales:', error);
+    });
+  }, [fetchSecrets, session?.user?.email]);
+
+  const handleSaveSecret = async () => {
+    console.log("¡Botón presionado! Intentando enviar:", {
+      title: serviceName,
+      environment,
+      passwordLength: password.length,
+      user: session?.user?.email
+    });
+
+    setIsSaving(true);
+    try {
+      const res = await fetch('http://localhost:3001/api/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: serviceName,
+          environment: environment.toUpperCase(),
+          password,
+          userId: session?.user?.email
+        })
+      });
+
+      if (res.ok) {
+        alert('🔒 ¡Credencial cifrada con AES-256 y guardada en tu bóveda!');
+        setIsModalOpen(false);
+        try {
+          await fetchSecrets();
+        } catch (error) {
+          console.error('Error al actualizar la lista de credenciales:', error);
+          alert('La credencial se guardó, pero no se pudo actualizar la lista.');
+        }
+      } else {
+        const errorData = await res.json() as { error?: string };
+        console.error("Error del backend:", errorData);
+        alert('Error: ' + (errorData.error || 'No se pudo guardar la credencial'));
+      }
+    } catch (error) {
+      console.error("Error del frontend:", error);
+      alert('Error de conexión con el servidor backend.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
@@ -130,6 +209,15 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold text-white mb-6">Tus Secretos Activos</h2>
         {secretos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {secretos.map((secreto) => (
+              <SecretCard
+                key={secreto.id}
+                title={secreto.title}
+                environment={secreto.environment}
+                url={secreto.url ?? ''}
+                password={secreto.password}
+              />
+            ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
@@ -183,7 +271,11 @@ export default function Dashboard() {
               
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1.5">Entorno</label>
-                <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors appearance-none">
+                <select
+                  value={environment}
+                  onChange={(e) => setEnvironment(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors appearance-none"
+                >
                   <option value="produccion">Producción</option>
                   <option value="desarrollo">Desarrollo</option>
                   <option value="personal">Personal</option>
@@ -238,16 +330,16 @@ export default function Dashboard() {
 
               <button 
                 type="button"
-                onClick={() => setIsModalOpen(false)}
-                disabled={(passwordErrors.length > 0 && password.length > 0) || password.length === 0 || serviceName.length === 0}
+                onClick={handleSaveSecret}
+                disabled={isSaving || (passwordErrors.length > 0 && password.length > 0) || password.length === 0 || serviceName.length === 0}
                 className={`w-full font-semibold py-3.5 rounded-lg mt-2 transition-colors flex justify-center items-center gap-2 cursor-pointer ${
-                  (passwordErrors.length > 0 && password.length > 0) || password.length === 0 || serviceName.length === 0
+                  isSaving || (passwordErrors.length > 0 && password.length > 0) || password.length === 0 || serviceName.length === 0
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
                     : 'bg-orange-500 hover:bg-orange-600 text-white'
                 }`}
               >
                 <Shield className="w-5 h-5" />
-                Cifrar con AES-256 y Guardar
+                {isSaving ? 'Cifrando...' : 'Cifrar con AES-256 y Guardar'}
               </button>
             </div>
 

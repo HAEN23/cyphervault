@@ -5,16 +5,17 @@ import { useState } from 'react';
 interface SecretCardProps {
   title: string;
   environment: string;
-  url: string;
+  url?: string;
+  password?: string;
   isExpired?: boolean;
 }
 
-export default function SecretCard({ title, environment, url, isExpired }: SecretCardProps) {
+export default function SecretCard({ title, environment, url, password, isExpired }: SecretCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
     // Aquí después conectaremos tu API (el backend) para desencriptar la contraseña real
-    navigator.clipboard.writeText("contraseña_desencriptada_aqui");
+    navigator.clipboard.writeText(password ?? "contraseña_desencriptada_aqui");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -27,7 +28,7 @@ export default function SecretCard({ title, environment, url, isExpired }: Secre
             <Server className="w-5 h-5 text-orange-500" />
             {title}
           </h3>
-          <p className="text-slate-400 text-sm mt-1">{url}</p>
+          {url && <p className="text-slate-400 text-sm mt-1">{url}</p>}
         </div>
         <span className={`text-xs px-2 py-1 rounded-full font-medium ${
           environment === 'Producción' ? 'bg-orange-500/10 text-orange-500' : 'bg-blue-500/10 text-blue-500'
