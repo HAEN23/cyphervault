@@ -1,13 +1,59 @@
 "use client";
-import { Shield, AlertTriangle, Lock, Activity, Plus, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Shield, AlertTriangle, Lock, Activity, Plus, LogOut, X, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import SecretCard from '@/components/SecretCard';
 import { useSession, signIn, signOut } from 'next-auth/react';
 
 export default function Dashboard() {
-  // Extraemos los datos de la sesión actual
   const { data: session, status } = useSession();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // 1. Pantalla de carga mientras verifica los tokens criptográficos
+  // Estados para controlar los inputs y evitar el autocompletado del navegador
+  const [serviceName, setServiceName] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+
+  const secretos: any[] = []; 
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (!value) {
+      setPasswordErrors([]);
+      return;
+    }
+    const errors = [];
+    if (value.length < 12) errors.push("12 caracteres mínimo");
+    if (!/[A-Z]/.test(value)) errors.push("1 mayúscula");
+    if (!/[a-z]/.test(value)) errors.push("1 minúscula");
+    if (!/[0-9]/.test(value)) errors.push("1 número");
+    if (!/[^A-Za-z0-9]/.test(value)) errors.push("1 carácter especial (!@#$%)");
+    
+    setPasswordErrors(errors);
+  };
+
+  const generateSecurePassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~|}{[]:;?><,./-=";
+    let newPass = "";
+    for (let i = 0; i < 16; i++) {
+      newPass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    newPass = newPass.slice(0, 12) + "A" + "a" + "1" + "!";
+    newPass = newPass.split('').sort(() => 0.5 - Math.random()).join('');
+    
+    handlePasswordChange(newPass);
+    setShowPassword(true);
+  };
+
+  // Función para resetear el formulario al abrir el modal
+  const openNewSecretModal = () => {
+    setServiceName('');
+    setPassword('');
+    setPasswordErrors([]);
+    setShowPassword(false);
+    setIsModalOpen(true);
+  };
+
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
@@ -17,7 +63,6 @@ export default function Dashboard() {
     );
   }
 
-  // 2. Pantalla de Login si el usuario no está autenticado
   if (!session) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
@@ -27,9 +72,8 @@ export default function Dashboard() {
           <p className="text-slate-400 mb-8 text-sm">Acceso Restringido. Identifícate para entrar a la bóveda corporativa.</p>
           <button
             onClick={() => signIn('google')}
-            className="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-colors"
+            className="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-colors cursor-pointer"
           >
-            {/* Ícono de Google */}
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -44,9 +88,8 @@ export default function Dashboard() {
     );
   }
 
-  // 3. Dashboard Principal (Solo visible si estás autenticado)
   return (
-    <main className="min-h-screen bg-slate-950 p-8 font-sans selection:bg-orange-500/30">
+    <main className="min-h-screen bg-slate-950 p-8 font-sans selection:bg-orange-500/30 relative">
       <header className="flex justify-between items-center mb-10 border-b border-slate-800 pb-6">
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-3">
@@ -59,14 +102,17 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <button className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
+          <button 
+            onClick={openNewSecretModal}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors cursor-pointer"
+          >
             <Plus className="w-5 h-5" />
             Nuevo Secreto
           </button>
           <button 
             onClick={() => signOut()}
             title="Cerrar sesión"
-            className="bg-slate-900 border border-slate-800 hover:border-red-500/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 p-2.5 rounded-lg transition-all"
+            className="bg-slate-900 border border-slate-800 hover:border-red-500/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 p-2.5 rounded-lg transition-all cursor-pointer"
           >
             <LogOut className="w-5 h-5" />
           </button>
@@ -74,20 +120,140 @@ export default function Dashboard() {
       </header>
 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <StatCard icon={<Lock />} title="Total Protegidas" value="142" color="text-emerald-500" />
-        <StatCard icon={<AlertTriangle />} title="Credenciales en Riesgo" value="3" color="text-red-500" />
-        <StatCard icon={<Shield />} title="Intentos Bloqueados" value="12" color="text-orange-500" />
-        <StatCard icon={<Activity />} title="Accesos 24h" value="45" color="text-blue-500" />
+        <StatCard icon={<Lock />} title="Total Protegidas" value="0" color="text-emerald-500" />
+        <StatCard icon={<AlertTriangle />} title="Credenciales en Riesgo" value="0" color="text-red-500" />
+        <StatCard icon={<Shield />} title="Intentos Bloqueados" value="0" color="text-orange-500" />
+        <StatCard icon={<Activity />} title="Accesos 24h" value="0" color="text-blue-500" />
       </section>
 
       <section>
         <h2 className="text-xl font-semibold text-white mb-6">Tus Secretos Activos</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <SecretCard title="Servidor AWS EC2 Principal" environment="Producción" url="console.aws.amazon.com" />
-          <SecretCard title="Base de Datos RDS" environment="Producción" url="postgres-prod.cluster-xyz.us-east-1.rds.amazonaws.com" isExpired={true} />
-          <SecretCard title="API Stripe Pagos" environment="Desarrollo" url="dashboard.stripe.com" />
-        </div>
+        {secretos.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
+            <Lock className="w-12 h-12 text-slate-700 mb-4" />
+            <h3 className="text-lg font-medium text-slate-300">Bóveda vacía</h3>
+            <p className="text-slate-500 mt-2 text-center max-w-md">
+              No tienes ninguna credencial guardada. Haz clic en "Nuevo Secreto" para registrar tu primera contraseña cifrada.
+            </p>
+          </div>
+        )}
       </section>
+
+      {/* Modal / Ventana Emergente */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          {/* form en lugar de div para controlar el autocompletado general */}
+          <form 
+            autoComplete="off"
+            onSubmit={(e) => e.preventDefault()} 
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
+          >
+            
+            <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)} 
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer bg-slate-800/50 hover:bg-slate-800 p-2 rounded-lg"
+                title="Regresar"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2 flex-1">
+                <Lock className="w-5 h-5 text-orange-500" />
+                Registrar Credencial
+              </h2>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1.5">Nombre del Servicio / Sistema</label>
+                <input 
+                  type="text" 
+                  value={serviceName}
+                  onChange={(e) => setServiceName(e.target.value)}
+                  autoComplete="off"
+                  data-lpignore="true"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors" 
+                  placeholder="Ej. Servidor Linux Producción" 
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1.5">Entorno</label>
+                <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors appearance-none">
+                  <option value="produccion">Producción</option>
+                  <option value="desarrollo">Desarrollo</option>
+                  <option value="personal">Personal</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-end mb-1.5">
+                  <label className="block text-sm font-medium text-slate-400">Contraseña Maestra a Proteger</label>
+                  <button 
+                    type="button"
+                    onClick={generateSecurePassword}
+                    className="text-xs text-orange-500 hover:text-orange-400 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Generar segura
+                  </button>
+                </div>
+                
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    value={password}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    className={`w-full bg-slate-950 border ${passwordErrors.length > 0 && password.length > 0 ? 'border-red-500/50' : 'border-slate-800'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors pr-12`}
+                    placeholder="••••••••••••••••" 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+
+                {passwordErrors.length > 0 && password.length > 0 && (
+                  <div className="mt-2 text-xs text-red-400 flex flex-col gap-1">
+                    <span className="font-semibold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> 
+                      Para ser segura, te falta incluir:
+                    </span>
+                    <ul className="list-disc list-inside ml-1">
+                      {passwordErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                disabled={(passwordErrors.length > 0 && password.length > 0) || password.length === 0 || serviceName.length === 0}
+                className={`w-full font-semibold py-3.5 rounded-lg mt-2 transition-colors flex justify-center items-center gap-2 cursor-pointer ${
+                  (passwordErrors.length > 0 && password.length > 0) || password.length === 0 || serviceName.length === 0
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+                    : 'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}
+              >
+                <Shield className="w-5 h-5" />
+                Cifrar con AES-256 y Guardar
+              </button>
+            </div>
+
+          </form>
+        </div>
+      )}
     </main>
   );
 }
