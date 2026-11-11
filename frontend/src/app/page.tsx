@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from 'react';
-import { Shield, AlertTriangle, Lock, Activity, Plus, LogOut, X, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Shield, AlertTriangle, Lock, Activity, Plus, LogOut, ArrowLeft, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import SecretCard from '@/components/SecretCard';
 import { useSession, signIn, signOut } from 'next-auth/react';
 
@@ -17,7 +17,7 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Estados para controlar los inputs y evitar el autocompletado del navegador
+  // Estados para controlar los inputs
   const [serviceName, setServiceName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [secretos, setSecretos] = useState<VaultSecret[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]); // <--- Nuevo estado de auditoría
 
   const fetchSecrets = useCallback(async () => {
     const userId = session?.user?.email;
@@ -44,13 +45,30 @@ export default function Dashboard() {
     setSecretos(data.secrets);
   }, [session?.user?.email]);
 
+  // <--- Nueva función para traer la auditoría
+  const fetchAuditLogs = useCallback(async () => {
+    const userId = session?.user?.email;
+    if (!userId) return;
+    try {
+      const res = await fetch(`http://localhost:3001/api/audit?userId=${encodeURIComponent(userId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAuditLogs(data.logs);
+      }
+    } catch (error) {
+      console.error("Error al cargar auditoría:", error);
+    }
+  }, [session?.user?.email]);
+
   useEffect(() => {
     if (!session?.user?.email) return;
 
     fetchSecrets().catch((error: unknown) => {
       console.error('Error al cargar las credenciales:', error);
     });
-  }, [fetchSecrets, session?.user?.email]);
+    
+    fetchAuditLogs(); // <--- Ejecutar carga de auditoría
+  }, [fetchSecrets, fetchAuditLogs, session?.user?.email]);
 
   const handleSaveSecret = async () => {
     console.log("¡Botón presionado! Intentando enviar:", {
@@ -78,6 +96,7 @@ export default function Dashboard() {
         setIsModalOpen(false);
         try {
           await fetchSecrets();
+          await fetchAuditLogs(); // <--- Actualizar tabla de auditoría al guardar
         } catch (error) {
           console.error('Error al actualizar la lista de credenciales:', error);
           alert('La credencial se guardó, pero no se pudo actualizar la lista.');
@@ -124,7 +143,6 @@ export default function Dashboard() {
     setShowPassword(true);
   };
 
-  // Función para resetear el formulario al abrir el modal
   const openNewSecretModal = () => {
     setServiceName('');
     setPassword('');
@@ -199,10 +217,11 @@ export default function Dashboard() {
       </header>
 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <StatCard icon={<Lock />} title="Total Protegidas" value="0" color="text-emerald-500" />
+        {/* <--- Indicadores conectados a los datos reales ---> */}
+        <StatCard icon={<Lock />} title="Total Protegidas" value={secretos.length.toString()} color="text-emerald-500" />
         <StatCard icon={<AlertTriangle />} title="Credenciales en Riesgo" value="0" color="text-red-500" />
         <StatCard icon={<Shield />} title="Intentos Bloqueados" value="0" color="text-orange-500" />
-        <StatCard icon={<Activity />} title="Accesos 24h" value="0" color="text-blue-500" />
+        <StatCard icon={<Activity />} title="Accesos 24h" value={auditLogs.length.toString()} color="text-blue-500" />
       </section>
 
       <section>
@@ -230,10 +249,50 @@ export default function Dashboard() {
         )}
       </section>
 
+      {/* <--- Sistema de Auditoría ---> */}
+      <div className="mt-12">
+        <h2 className="text-xl font-bold text-white mb-6">Registro de Auditoría (Logs)</h2>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead className="bg-slate-950 text-slate-400">
+              <tr>
+                <th className="px-6 py-4 font-medium">Acción</th>
+                <th className="px-6 py-4 font-medium">Servicio Afectado</th>
+                <th className="px-6 py-4 font-medium">Dirección IP</th>
+                <th className="px-6 py-4 font-medium">Fecha y Hora</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {auditLogs.length > 0 ? (
+                auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-800/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-md text-xs font-semibold">
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-white">{log.secret?.title || 'Desconocido'}</td>
+                    <td className="px-6 py-4 font-mono text-xs">{log.ipAddress}</td>
+                    <td className="px-6 py-4 text-slate-400">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                    No hay registros de auditoría recientes.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Modal / Ventana Emergente */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          {/* form en lugar de div para controlar el autocompletado general */}
           <form 
             autoComplete="off"
             onSubmit={(e) => e.preventDefault()} 

@@ -13,7 +13,6 @@ export const createSecret = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-   
     const user = await prisma.user.upsert({
       where: { email: userId },
       update: {},
@@ -24,10 +23,8 @@ export const createSecret = async (req: Request, res: Response): Promise<void> =
       }
     });
 
-    
     const { iv, encryptedData } = encryptData(password);
 
-    
     const newSecret = await prisma.secret.create({
       data: {
         title,
@@ -38,7 +35,6 @@ export const createSecret = async (req: Request, res: Response): Promise<void> =
       }
     });
 
-    
     const ipAddress = req.ip || req.socket.remoteAddress || 'IP_DESCONOCIDA';
     const userAgent = req.headers['user-agent'] || 'DESCONOCIDO';
 
@@ -93,5 +89,34 @@ export const getSecrets = async (req: Request, res: Response): Promise<void> => 
   } catch (error) {
     console.error('[CipherVault Error]:', error);
     res.status(500).json({ error: 'Error interno al recuperar los secretos' });
+  }
+};
+
+export const getAuditLogs = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ error: 'Falta el identificador del usuario' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: userId } });
+    if (!user) {
+      res.status(200).json({ logs: [] });
+      return;
+    }
+
+    // Extraemos el historial de acciones, incluyendo el nombre del secreto afectado
+    const logs = await prisma.auditLog.findMany({
+      where: { userId: user.id },
+      include: { secret: true }, // La magia de Prisma: hace un JOIN automático con la tabla Secret
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.status(200).json({ logs });
+  } catch (error) {
+    console.error('[CipherVault Error]:', error);
+    res.status(500).json({ error: 'Error al recuperar registros de auditoría' });
   }
 };
