@@ -7,12 +7,15 @@ import SecretFormModal, { type SecretFormValues } from "@/components/SecretFormM
 import LoginScreen from "@/components/LoginScreen";
 import MfaForm from "@/components/MfaForm";
 import AuditTable from "@/components/AuditTable";
+import { useTabSession } from "@/lib/useTabSession";
 import { apiFetch, loadDashboard, type AuditLogEntry, type DashboardData, type Stats, type VaultSecret } from "@/lib/api";
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const token = session?.accessToken;
   const isAdmin = session?.user?.role === "ADMIN";
+  // Cierra la sesión al cerrar la ventana/pestaña (ver lib/useTabSession.ts)
+  const tabSession = useTabSession(status);
 
   const [secretos, setSecretos] = useState<VaultSecret[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -95,7 +98,7 @@ export default function Dashboard() {
     }
   };
 
-  if (status === "loading") {
+  if (status === "loading" || tabSession === "checking") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
         <Shield className="w-16 h-16 text-orange-500 animate-pulse mb-4" />
