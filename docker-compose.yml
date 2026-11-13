@@ -1,16 +1,54 @@
+# Uso:
+#   1. Copia .env.example a .env (en esta carpeta) y llena los valores.
+#   2. docker compose up -d --build
 services:
   db:
     image: postgres:15-alpine
     container_name: ciphervault_db
     restart: always
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: rootpassword
-      POSTGRES_DB: ciphervault
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ciphervault}
     ports:
-      - "5433:5432"
+      # Solo accesible desde tu máquina (no desde la red local)
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-ciphervault}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: ciphervault_api
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ciphervault}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+    ports:
+      - "3001:3001"
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
 
 volumes:
   pgdata:

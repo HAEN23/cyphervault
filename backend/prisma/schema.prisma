@@ -27,6 +27,9 @@ model User {
   passwordHash String? // Opcional porque los usuarios de Google no tendrán contraseña local, pero útil para registros manuales con bcrypt
   role         Role     @default(USER)
   isActive     Boolean  @default(true)
+  // Bloqueo de cuenta tras varios intentos fallidos de inicio de sesión (fuerza bruta)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -44,6 +47,11 @@ model Secret {
   encryptedData String
   iv            String // Vector de Inicialización: Crítico para la seguridad de AES-256
 
+  // Fecha del último cambio de contraseña: base de la alerta de rotación (>90 días)
+  passwordChangedAt DateTime  @default(now())
+  // Borrado lógico: el secreto deja de estar activo pero su rastro de auditoría se conserva
+  deletedAt         DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -51,6 +59,8 @@ model Secret {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   auditLogs AuditLog[]
+
+  @@index([userId, deletedAt])
 }
 
 model AuditLog {
@@ -66,4 +76,7 @@ model AuditLog {
 
   secretId String?
   secret   Secret? @relation(fields: [secretId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
 }
