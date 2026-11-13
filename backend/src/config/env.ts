@@ -34,4 +34,24 @@ export const env = {
   // Número de proxies delante de la API (0 si se expone directo). Necesario para registrar la IP real.
   trustProxy: Number(process.env.TRUST_PROXY ?? 0),
   rotationDays: Number(process.env.ROTATION_DAYS ?? 90),
+
+  // Verificación en dos pasos por correo (Gmail SMTP con contraseña de aplicación)
+  smtp: {
+    host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT ?? 465),
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+    from: process.env.MAIL_FROM ?? process.env.SMTP_USER ?? '',
+  },
+  mfaCodeMinutes: Number(process.env.MFA_CODE_MINUTES ?? 10),
+  // SOLO para el entorno de pruebas/pentest: incluye el código en la respuesta de la API.
+  mfaExposeCodeForTests: process.env.MFA_DEV_EXPOSE_CODE === 'true',
+  isProduction: process.env.NODE_ENV === 'production',
 };
+
+if (env.isProduction && env.mfaExposeCodeForTests) {
+  throw new Error('[CipherVault] MFA_DEV_EXPOSE_CODE no se puede activar en producción');
+}
+if (env.isProduction && (!env.smtp.user || !env.smtp.pass)) {
+  throw new Error('[CipherVault] En producción se requieren SMTP_USER y SMTP_PASS para la verificación en dos pasos');
+}

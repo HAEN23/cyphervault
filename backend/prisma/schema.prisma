@@ -21,21 +21,22 @@ enum Environment {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  passwordHash String? // Opcional porque los usuarios de Google no tendrán contraseña local, pero útil para registros manuales con bcrypt
-  role         Role     @default(USER)
-  isActive     Boolean  @default(true)
+  id                  String    @id @default(uuid())
+  email               String    @unique
+  name                String
+  passwordHash        String? // Opcional porque los usuarios de Google no tendrán contraseña local, pero útil para registros manuales con bcrypt
+  role                Role      @default(USER)
+  isActive            Boolean   @default(true)
   // Bloqueo de cuenta tras varios intentos fallidos de inicio de sesión (fuerza bruta)
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Relaciones
-  secrets   Secret[]
-  auditLogs AuditLog[]
+  secrets       Secret[]
+  auditLogs     AuditLog[]
+  mfaChallenges MfaChallenge[]
 }
 
 model Secret {
@@ -79,4 +80,21 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@index([action, createdAt])
+}
+
+// Verificación en dos pasos: código de 6 dígitos enviado por correo en cada inicio de sesión
+model MfaChallenge {
+  id         String    @id @default(uuid())
+  codeHash   String // HMAC-SHA256 del código: nunca se guarda el código en claro
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  sends      Int       @default(1)
+  consumedAt DateTime?
+  ipAddress  String
+  createdAt  DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

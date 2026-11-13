@@ -10,6 +10,12 @@ interface ApiAuthResponse {
   accessToken: string;
 }
 
+interface ApiMfaChallenge {
+  mfaRequired: true;
+  challengeId: string;
+  sentTo: string;
+}
+
 /** Lee la fecha de expiración (exp) del JWT de la API, sin verificarlo (eso lo hace la API). */
 function tokenExpiry(token: string): number {
   try {
@@ -26,23 +32,25 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     }),
-    // Inicio de sesión local: la API compara la contraseña contra el hash bcrypt
+    // Paso 2 de TODOS los inicios de sesión: el código de 6 dígitos que llegó por correo.
+    // (El paso 1, contraseña o Google, ya devolvió un challengeId.)
     CredentialsProvider({
-      name: "Correo y contraseña",
+      id: "mfa",
+      name: "Código de verificación",
       credentials: {
-        email: { label: "Correo", type: "email" },
-        password: { label: "Contraseña", type: "password" },
+        challengeId: { label: "Reto", type: "text" },
+        code: { label: "Código", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        const res = await fetch(`${API_URL}/api/auth/login`, {
+        if (!credentials?.challengeId || !credentials?.code) return null;
+        const res = await fetch(`${API_URL}/api/auth/mfa/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+          body: JSON.stringify({ challengeId: credentials.challengeId, code: credentials.code }),
         });
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? "No se pudo iniciar sesión");
+          throw new Error(data.error ?? "Código incorrecto");
         }
         const data = (await res.json()) as ApiAuthResponse;
         return { ...data.user, accessToken: data.accessToken };
@@ -58,7 +66,8 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, account }) {
-      // Inicio de sesión con Google: se canjea el id_token de Google por un JWT propio de la API
+      // Paso 1 con Google: la API verifica el id_token y manda el código por correo.
+      // Todavía NO hay accessToken: la sesión queda "pendiente de verificación".
       if (account?.provider === "google" && account.id_token) {
         const res = await fetch(`${API_URL}/api/auth/google`, {
           method: "POST",
@@ -68,17 +77,20 @@ export const authOptions: NextAuthOptions = {
         if (!res.ok) {
           throw new Error("La API rechazó el inicio de sesión con Google");
         }
-        const data = (await res.json()) as ApiAuthResponse;
-        token.accessToken = data.accessToken;
-        token.role = data.user.role;
-        token.accessTokenExpires = tokenExpiry(data.accessToken);
+        const data = (await res.json()) as ApiMfaChallenge;
+        token.mfaChallengeId = data.challengeId;
+        token.mfaSentTo = data.sentTo;
+        delete token.accessToken;
+        delete token.role;
       }
 
-      // Inicio de sesión local (Credentials)
-      if (account?.provider === "credentials" && user) {
+      // Paso 2 superado: ahora sí se guarda el JWT de la API
+      if (account?.provider === "mfa" && user) {
         token.accessToken = user.accessToken;
         token.role = user.role;
         token.accessTokenExpires = tokenExpiry(user.accessToken);
+        delete token.mfaChallengeId;
+        delete token.mfaSentTo;
       }
 
       if (token.accessTokenExpires && Date.now() > token.accessTokenExpires) {
@@ -89,6 +101,8 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.accessToken = token.accessToken;
       session.error = token.error;
+      session.mfaChallengeId = token.mfaChallengeId;
+      session.mfaSentTo = token.mfaSentTo;
       if (session.user) {
         session.user.email = token.email;
         session.user.role = token.role;

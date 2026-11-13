@@ -13,6 +13,9 @@ export const AuditAction = {
   ACCESS_DENIED: 'ACCESS_DENIED',
   RATE_LIMIT_BLOCKED: 'RATE_LIMIT_BLOCKED',
   ADMIN_UPDATE_USER: 'ADMIN_UPDATE_USER',
+  MFA_CODE_SENT: 'MFA_CODE_SENT',
+  MFA_SUCCESS: 'MFA_SUCCESS',
+  MFA_FAILED: 'MFA_FAILED',
 } as const;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];
@@ -23,6 +26,7 @@ export const BLOCKED_ACTIONS: AuditActionType[] = [
   AuditAction.LOGIN_LOCKED,
   AuditAction.ACCESS_DENIED,
   AuditAction.RATE_LIMIT_BLOCKED,
+  AuditAction.MFA_FAILED,
 ];
 
 export function getClientIp(req: Request): string {

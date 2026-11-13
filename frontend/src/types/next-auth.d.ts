@@ -7,6 +7,9 @@ declare module "next-auth" {
   interface Session {
     accessToken?: string;
     error?: "TokenExpired";
+    /** Hay un código por correo pendiente de verificar (inicio con Google). */
+    mfaChallengeId?: string;
+    mfaSentTo?: string;
     user?: {
       name?: string | null;
       email?: string | null;
@@ -27,5 +30,7 @@ declare module "next-auth/jwt" {
     accessTokenExpires?: number;
     role?: Role;
     error?: "TokenExpired";
+    mfaChallengeId?: string;
+    mfaSentTo?: string;
   }
 }

@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import { Shield } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { getPasswordErrors } from "@/lib/password";
+import MfaForm from "@/components/MfaForm";
 
 export default function LoginScreen() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -12,36 +13,40 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [challenge, setChallenge] = useState<{ challengeId: string; sentTo: string } | null>(null);
 
   const passwordErrors = mode === "register" && password ? getPasswordErrors(password) : [];
 
+  // Paso 1: la API valida la contraseña (bcrypt) y manda el código por correo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      if (mode === "register") {
-        // El alta se hace en la API, que guarda la contraseña con bcrypt
-        const res = await fetch(`${API_URL}/api/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "No se pudo crear la cuenta");
-        }
+      const path = mode === "register" ? "/api/auth/register" : "/api/auth/login";
+      const body = mode === "register" ? { name, email, password } : { email, password };
+      const res = await fetch(`${API_URL}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.challengeId) {
+        throw new Error(data.error ?? "No se pudo iniciar sesión");
       }
-      const result = await signIn("credentials", { email, password, redirect: false });
-      if (!result || result.error) {
-        throw new Error(result?.error ?? "Correo o contraseña incorrectos");
-      }
+      setPassword("");
+      setChallenge({ challengeId: data.challengeId, sentTo: data.sentTo });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
       setLoading(false);
     }
   };
+
+  // Paso 2: escribir el código
+  if (challenge) {
+    return <MfaForm challengeId={challenge.challengeId} sentTo={challenge.sentTo} onCancel={() => setChallenge(null)} />;
+  }
 
   const inputClass =
     "w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors";

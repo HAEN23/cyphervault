@@ -1,6 +1,6 @@
 # CipherVault
 
-Bóveda web de credenciales con cifrado AES-256, autenticación JWT, control de acceso por roles (RBAC) y auditoría de accesos.
+Bóveda web de credenciales con cifrado AES-256, autenticación JWT con verificación en dos pasos por correo, control de acceso por roles (RBAC) y auditoría de accesos.
 
 - `frontend/`: Next.js + React + Tailwind CSS (login con Google o con correo y contraseña).
 - `backend/`: API RESTful en Express + TypeScript + Prisma.
@@ -32,13 +32,16 @@ npm install --prefix frontend
 npm run dev --prefix frontend           # http://localhost:3000
 ```
 
+Cada inicio de sesión pide un código de 6 dígitos enviado por correo. Configura `SMTP_USER` y `SMTP_PASS` (contraseña de aplicación de Gmail) en `backend/.env`; si están vacíos, en desarrollo el código aparece en la consola del backend.
+
 Los correos listados en `ADMIN_EMAILS` se crean con rol ADMIN y pueden ver la auditoría de toda la plataforma.
 
 ## Endpoints
 
 | Método | Ruta | Acceso |
 |---|---|---|
-| POST | `/api/auth/register`, `/api/auth/login`, `/api/auth/google` | Público (5 intentos / 15 min) |
+| POST | `/api/auth/register`, `/api/auth/login`, `/api/auth/google` | Público (5 intentos / 15 min). Mandan el código por correo, no dan token |
+| POST | `/api/auth/mfa/verify`, `/api/auth/mfa/resend` | Público (10 intentos / 15 min). Con el código correcto entrega el JWT |
 | GET | `/api/auth/me` | JWT |
 | GET, POST | `/api/secrets` | JWT |
 | POST | `/api/secrets/:id/reveal` | JWT, solo el dueño |

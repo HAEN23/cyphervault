@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { verifyToken, requireRole } from '../middlewares/authMiddleware.js';
-import { authLimiter } from '../middlewares/rateLimiters.js';
-import { register, login, googleLogin, me } from '../controllers/authController.js';
+import { authLimiter, mfaLimiter } from '../middlewares/rateLimiters.js';
+import { register, login, googleLogin, verifyMfa, resendMfa, me } from '../controllers/authController.js';
 import { createSecret, getSecrets, revealSecret, rotateSecret, deleteSecret } from '../controllers/secretController.js';
 import { getMyAuditLogs, getAllAuditLogs, getStats } from '../controllers/auditController.js';
 import { listUsers, updateUser } from '../controllers/adminController.js';
@@ -12,6 +12,8 @@ export const router = Router();
 router.post('/auth/register', authLimiter, register);
 router.post('/auth/login', authLimiter, login);
 router.post('/auth/google', authLimiter, googleLogin);
+router.post('/auth/mfa/verify', mfaLimiter, verifyMfa);
+router.post('/auth/mfa/resend', mfaLimiter, resendMfa);
 
 router.get('/health', (_req, res) => {
   res.status(200).json({ status: 'OK' });
