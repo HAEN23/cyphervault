@@ -44,3 +44,13 @@ export const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
   handler: blockedHandler('Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos.'),
 });
+
+/** Límite propio para la verificación del código: 10 intentos por IP cada 15 minutos. */
+export const mfaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  handler: blockedHandler('Demasiados intentos de verificación. Intenta de nuevo en 15 minutos.'),
+});

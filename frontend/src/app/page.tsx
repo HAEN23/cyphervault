@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import SecretCard from "@/components/SecretCard";
 import SecretFormModal, { type SecretFormValues } from "@/components/SecretFormModal";
 import LoginScreen from "@/components/LoginScreen";
+import MfaForm from "@/components/MfaForm";
 import AuditTable from "@/components/AuditTable";
 import { apiFetch, loadDashboard, type AuditLogEntry, type DashboardData, type Stats, type VaultSecret } from "@/lib/api";
 
@@ -100,6 +101,17 @@ export default function Dashboard() {
         <Shield className="w-16 h-16 text-orange-500 animate-pulse mb-4" />
         <p className="text-slate-400 font-mono tracking-widest text-sm">VERIFICANDO IDENTIDAD...</p>
       </div>
+    );
+  }
+
+  // Entró con Google pero falta el código que llegó por correo
+  if (session && !token && session.mfaChallengeId) {
+    return (
+      <MfaForm
+        challengeId={session.mfaChallengeId}
+        sentTo={session.mfaSentTo ?? "tu correo"}
+        onCancel={() => signOut({ callbackUrl: "/" })}
+      />
     );
   }
 
