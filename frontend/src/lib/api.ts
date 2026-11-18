@@ -61,6 +61,17 @@ export interface Stats {
   blockedAttempts: number;
   access24h: number;
   scope: "personal" | "global";
+  history?: {
+    totalProtected: SeriesPoint[];
+    atRisk: SeriesPoint[];
+    blockedAttempts: SeriesPoint[];
+    access24h: SeriesPoint[];
+  };
+}
+
+export interface SeriesPoint {
+  t: string; // fin del intervalo (ISO)
+  v: number;
 }
 
 export interface DashboardData {
