@@ -28,7 +28,7 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
 
   // Se consulta la base de datos para respetar cambios de rol o cuentas desactivadas al instante
   const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.status !== 'APPROVED') {
     await logEvent(req, { action: AuditAction.ACCESS_DENIED, userId: user?.id, details: { reason: 'CUENTA_INACTIVA' } });
     res.status(401).json({ error: 'Cuenta inexistente o desactivada.' });
     return;

@@ -10,7 +10,13 @@ interface Props {
   onChanged: () => void;
 }
 
-/** Solo ADMIN: lista de usuarios con cambio de rol y activar/desactivar cuenta (/api/admin/users). */
+const STATUS_BADGE: Record<AdminUser["status"], { label: string; className: string }> = {
+  PENDING: { label: "Pendiente", className: "bg-amber-500/10 text-amber-400" },
+  APPROVED: { label: "Activa", className: "bg-emerald-500/10 text-emerald-400" },
+  REJECTED: { label: "Rechazada", className: "bg-red-500/10 text-red-400" },
+};
+
+/** Solo ADMIN: aceptar/rechazar cuentas nuevas, cambiar rol y activar/desactivar (/api/admin/users). */
 export default function UserAdminTable({ token, currentEmail, onChanged }: Props) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -39,7 +45,8 @@ export default function UserAdminTable({ token, currentEmail, onChanged }: Props
     return () => { cancelled = true; };
   }, [fetchUsers]);
 
-  const update = async (user: AdminUser, changes: Partial<Pick<AdminUser, "role" | "isActive">>) => {
+  const update = async (user: AdminUser, changes: Partial<Pick<AdminUser, "role" | "isActive" | "status">>) => {
+    if (changes.status === "REJECTED" && !window.confirm(`¿Rechazar la solicitud de ${user.email}? No podrá entrar.`)) return;
     if (changes.isActive === false && !window.confirm(`¿Desactivar la cuenta de ${user.email}? No podrá iniciar sesión.`)) return;
     if (changes.role && !window.confirm(`¿Cambiar el rol de ${user.email} a ${changes.role}?`)) return;
     setBusyId(user.id);
@@ -92,13 +99,37 @@ export default function UserAdminTable({ token, currentEmail, onChanged }: Props
                     </select>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${u.isActive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
-                      {u.isActive ? "Activa" : "Desactivada"}
-                    </span>
+                    {u.status === "APPROVED" && !u.isActive ? (
+                      <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-red-500/10 text-red-400">Desactivada</span>
+                    ) : (
+                      <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${STATUS_BADGE[u.status].className}`}>
+                        {STATUS_BADGE[u.status].label}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">{u._count.secrets}</td>
                   <td className="px-6 py-4 text-slate-400">{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td className="px-6 py-4">
+                    {u.status !== "APPROVED" ? (
+                      <div className="flex gap-2">
+                        <button
+                          disabled={disabled}
+                          onClick={() => update(u, { status: "APPROVED" })}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                        >
+                          Aceptar
+                        </button>
+                        {u.status === "PENDING" && (
+                          <button
+                            disabled={disabled}
+                            onClick={() => update(u, { status: "REJECTED" })}
+                            className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                          >
+                            Rechazar
+                          </button>
+                        )}
+                      </div>
+                    ) : (
                     <button
                       disabled={disabled}
                       onClick={() => update(u, { isActive: !u.isActive })}
@@ -108,6 +139,7 @@ export default function UserAdminTable({ token, currentEmail, onChanged }: Props
                     >
                       {u.isActive ? "Desactivar" : "Activar"}
                     </button>
+                    )}
                   </td>
                 </tr>
               );

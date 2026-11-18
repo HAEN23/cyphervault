@@ -34,7 +34,9 @@ npm run dev --prefix frontend           # http://localhost:3000
 
 Cada inicio de sesión pide un código de 6 dígitos enviado por correo. Configura `SMTP_USER` y `SMTP_PASS` (contraseña de aplicación de Gmail) en `backend/.env`; si están vacíos, en desarrollo el código aparece en la consola del backend.
 
-Los correos listados en `ADMIN_EMAILS` se crean con rol ADMIN y pueden ver la auditoría de toda la plataforma.
+Los correos listados en `ADMIN_EMAILS` se crean con rol ADMIN, entran directo y pueden ver la auditoría de toda la plataforma.
+
+Cualquier otra cuenta nueva (con correo o con Google) queda **pendiente** y no puede entrar hasta que un ADMIN la acepte en *Administración de Usuarios*. Al intentar entrar ve una pantalla de espera; una vez aceptada, inicia sesión con el código que llega por correo.
 
 ## Endpoints
 
@@ -49,7 +51,7 @@ Los correos listados en `ADMIN_EMAILS` se crean con rol ADMIN y pueden ver la au
 | DELETE | `/api/secrets/:id` | JWT, solo el dueño |
 | GET | `/api/audit`, `/api/stats` | JWT |
 | GET | `/api/admin/audit`, `/api/admin/users` | ADMIN |
-| PATCH | `/api/admin/users/:id` | ADMIN |
+| PATCH | `/api/admin/users/:id` | ADMIN. Body: `status` (`APPROVED`/`REJECTED`), `role` o `isActive` |
 
 ## Pruebas de seguridad
 

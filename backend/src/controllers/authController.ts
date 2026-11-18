@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AccountStatus } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma } from '../config/prisma.js';
@@ -19,6 +20,32 @@ const googleClient = new OAuth2Client();
 
 function roleFor(email: string) {
   return env.adminEmails.includes(email) ? 'ADMIN' : 'USER';
+}
+
+/** Los correos de ADMIN_EMAILS entran directo; el resto espera la aprobación de un ADMIN. */
+function initialStatus(email: string): AccountStatus {
+  return roleFor(email) === 'ADMIN' ? 'APPROVED' : 'PENDING';
+}
+
+const STATUS_MESSAGES: Record<Exclude<AccountStatus, 'APPROVED'>, string> = {
+  PENDING: 'Tu cuenta está en espera de aprobación por un administrador.',
+  REJECTED: 'Tu solicitud de acceso fue rechazada por un administrador.',
+};
+
+/**
+ * Solo se llama cuando la identidad ya se comprobó (contraseña o Google), así que
+ * decir el estado no permite enumerar cuentas. Devuelve true si cortó la petición.
+ */
+async function blockIfNotApproved(
+  req: Request,
+  res: Response,
+  user: { id: string; status: AccountStatus },
+  method: 'local' | 'google',
+): Promise<boolean> {
+  if (user.status === 'APPROVED') return false;
+  await logEvent(req, { action: AuditAction.LOGIN_FAILED, userId: user.id, details: { method, reason: `CUENTA_${user.status}` } });
+  res.status(403).json({ error: STATUS_MESSAGES[user.status], status: user.status });
+  return true;
 }
 
 function publicUser(user: { id: string; email: string; name: string; role: string }) {
@@ -83,10 +110,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({
-    data: { email, name, passwordHash, role: roleFor(email) },
+    data: { email, name, passwordHash, role: roleFor(email), status: initialStatus(email) },
   });
 
-  await logEvent(req, { action: AuditAction.REGISTER, userId: user.id, details: { method: 'local' } });
+  await logEvent(req, { action: AuditAction.REGISTER, userId: user.id, details: { method: 'local', status: user.status } });
+  if (user.status === 'PENDING') {
+    // El código por correo se pedirá en su primer inicio de sesión, ya aprobado
+    res.status(201).json({ pending: true, status: user.status, message: STATUS_MESSAGES.PENDING });
+    return;
+  }
   // El primer código también comprueba que el correo realmente es de quien se registra
   await requireSecondFactor(req, res, user, 201);
 };
@@ -130,6 +162,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 
   await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } });
+  if (await blockIfNotApproved(req, res, user, 'local')) return;
   await requireSecondFactor(req, res, user);
 };
 
@@ -163,17 +196,18 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
     return;
   }
 
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: { email, name, role: roleFor(email) },
-  });
+  let user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    user = await prisma.user.create({ data: { email, name, role: roleFor(email), status: initialStatus(email) } });
+    await logEvent(req, { action: AuditAction.REGISTER, userId: user.id, details: { method: 'google', status: user.status } });
+  }
 
   if (!user.isActive) {
     await logEvent(req, { action: AuditAction.LOGIN_FAILED, userId: user.id, details: { method: 'google', reason: 'CUENTA_INACTIVA' } });
     res.status(403).json({ error: 'Cuenta desactivada' });
     return;
   }
+  if (await blockIfNotApproved(req, res, user, 'google')) return;
 
   await requireSecondFactor(req, res, user);
 };
@@ -203,7 +237,7 @@ export const verifyMfa = async (req: Request, res: Response): Promise<void> => {
   }
 
   const user = await prisma.user.findUnique({ where: { id: result.userId } });
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.status !== 'APPROVED') {
     res.status(403).json({ error: 'Cuenta desactivada' });
     return;
   }

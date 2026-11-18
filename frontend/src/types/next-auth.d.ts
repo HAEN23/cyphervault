@@ -10,6 +10,8 @@ declare module "next-auth" {
     /** Hay un código por correo pendiente de verificar (inicio con Google). */
     mfaChallengeId?: string;
     mfaSentTo?: string;
+    /** Entró con Google pero la cuenta aún no la acepta un ADMIN (o fue rechazada). */
+    accountStatus?: "PENDING" | "REJECTED";
     user?: {
       name?: string | null;
       email?: string | null;
@@ -32,5 +34,6 @@ declare module "next-auth/jwt" {
     error?: "TokenExpired";
     mfaChallengeId?: string;
     mfaSentTo?: string;
+    accountStatus?: "PENDING" | "REJECTED";
   }
 }

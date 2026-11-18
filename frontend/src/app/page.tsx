@@ -6,6 +6,7 @@ import SecretCard from "@/components/SecretCard";
 import SecretFormModal, { type SecretFormValues } from "@/components/SecretFormModal";
 import LoginScreen from "@/components/LoginScreen";
 import MfaForm from "@/components/MfaForm";
+import PendingScreen from "@/components/PendingScreen";
 import AuditTable from "@/components/AuditTable";
 import StatChart from "@/components/StatChart";
 import UserAdminTable from "@/components/UserAdminTable";
@@ -108,6 +109,11 @@ export default function Dashboard() {
         <p className="text-slate-400 font-mono tracking-widest text-sm">VERIFICANDO IDENTIDAD...</p>
       </div>
     );
+  }
+
+  // Entró con Google pero un ADMIN todavía no acepta su cuenta (o la rechazó)
+  if (session && !token && session.accountStatus) {
+    return <PendingScreen status={session.accountStatus} onBack={() => signOut({ callbackUrl: "/" })} />;
   }
 
   // Entró con Google pero falta el código que llegó por correo
