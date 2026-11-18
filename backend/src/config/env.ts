@@ -43,6 +43,8 @@ export const env = {
     pass: process.env.SMTP_PASS ?? '',
     from: process.env.MAIL_FROM ?? process.env.SMTP_USER ?? '',
   },
+  // Alternativa por HTTPS para hosts que bloquean SMTP (p. ej. Render gratis). Si existe, se usa en lugar de SMTP.
+  brevoApiKey: process.env.BREVO_API_KEY ?? '',
   mfaCodeMinutes: Number(process.env.MFA_CODE_MINUTES ?? 10),
   // SOLO para el entorno de pruebas/pentest: incluye el código en la respuesta de la API.
   mfaExposeCodeForTests: process.env.MFA_DEV_EXPOSE_CODE === 'true',
@@ -52,6 +54,6 @@ export const env = {
 if (env.isProduction && env.mfaExposeCodeForTests) {
   throw new Error('[CipherVault] MFA_DEV_EXPOSE_CODE no se puede activar en producción');
 }
-if (env.isProduction && (!env.smtp.user || !env.smtp.pass)) {
-  throw new Error('[CipherVault] En producción se requieren SMTP_USER y SMTP_PASS para la verificación en dos pasos');
+if (env.isProduction && !env.brevoApiKey && (!env.smtp.user || !env.smtp.pass)) {
+  throw new Error('[CipherVault] En producción se requieren SMTP_USER y SMTP_PASS (o BREVO_API_KEY) para la verificación en dos pasos');
 }
