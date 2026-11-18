@@ -52,6 +52,7 @@ export interface AdminUser {
   name: string;
   role: "ADMIN" | "USER";
   isActive: boolean;
+  status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
   _count: { secrets: number };
 }

@@ -74,6 +74,18 @@ export const authOptions: NextAuthOptions = {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken: account.id_token }),
         });
+        delete token.accountStatus;
+        if (res.status === 403) {
+          // Cuenta pendiente o rechazada: se muestra la pantalla de espera, sin código ni accessToken
+          const data = (await res.json().catch(() => ({}))) as { status?: string };
+          if (data.status === "PENDING" || data.status === "REJECTED") {
+            token.accountStatus = data.status;
+            delete token.accessToken;
+            delete token.role;
+            delete token.mfaChallengeId;
+            return token;
+          }
+        }
         if (!res.ok) {
           throw new Error("La API rechazó el inicio de sesión con Google");
         }
@@ -103,6 +115,7 @@ export const authOptions: NextAuthOptions = {
       session.error = token.error;
       session.mfaChallengeId = token.mfaChallengeId;
       session.mfaSentTo = token.mfaSentTo;
+      session.accountStatus = token.accountStatus;
       if (session.user) {
         session.user.email = token.email;
         session.user.role = token.role;

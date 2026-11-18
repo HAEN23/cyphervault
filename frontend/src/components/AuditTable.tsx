@@ -1,8 +1,8 @@
 "use client";
 import type { AuditLogEntry } from "@/lib/api";
 
-const DANGER = new Set(["LOGIN_FAILED", "LOGIN_LOCKED", "ACCESS_DENIED", "RATE_LIMIT_BLOCKED", "DELETE_SECRET"]);
-const WARN = new Set(["READ_SECRET", "ROTATE_SECRET", "ADMIN_UPDATE_USER"]);
+const DANGER = new Set(["LOGIN_FAILED", "LOGIN_LOCKED", "ACCESS_DENIED", "RATE_LIMIT_BLOCKED", "DELETE_SECRET", "ADMIN_REJECT_USER"]);
+const WARN = new Set(["READ_SECRET", "ROTATE_SECRET", "ADMIN_UPDATE_USER", "ADMIN_APPROVE_USER"]);
 
 function badge(action: string) {
   if (DANGER.has(action)) return "bg-red-500/10 text-red-400";

@@ -5,6 +5,7 @@ import { Shield } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { getPasswordErrors } from "@/lib/password";
 import MfaForm from "@/components/MfaForm";
+import PendingScreen, { type AccountStatus } from "@/components/PendingScreen";
 
 export default function LoginScreen() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [challenge, setChallenge] = useState<{ challengeId: string; sentTo: string } | null>(null);
+  const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
 
   const passwordErrors = mode === "register" && password ? getPasswordErrors(password) : [];
 
@@ -31,6 +33,13 @@ export default function LoginScreen() {
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
+      // Registro nuevo, o login de una cuenta que un ADMIN aún no acepta / rechazó
+      if (data.status === "PENDING" || data.status === "REJECTED") {
+        setPassword("");
+        setMode("login");
+        setAccountStatus(data.status);
+        return;
+      }
       if (!res.ok || !data.challengeId) {
         throw new Error(data.error ?? "No se pudo iniciar sesión");
       }
@@ -42,6 +51,10 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  if (accountStatus) {
+    return <PendingScreen status={accountStatus} onBack={() => setAccountStatus(null)} />;
+  }
 
   // Paso 2: escribir el código
   if (challenge) {

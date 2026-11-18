@@ -14,6 +14,13 @@ enum Role {
   USER
 }
 
+// Las cuentas nuevas esperan a que un ADMIN las acepte (denegar por defecto)
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Environment {
   PRODUCCION
   DESARROLLO
@@ -27,6 +34,7 @@ model User {
   passwordHash        String? // Opcional porque los usuarios de Google no tendrán contraseña local, pero útil para registros manuales con bcrypt
   role                Role      @default(USER)
   isActive            Boolean   @default(true)
+  status              AccountStatus @default(PENDING)
   // Bloqueo de cuenta tras varios intentos fallidos de inicio de sesión (fuerza bruta)
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
