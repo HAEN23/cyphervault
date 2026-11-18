@@ -48,6 +48,29 @@ async function blockIfNotApproved(
   return true;
 }
 
+/** Suma un intento fallido (contraseña o código) y bloquea la cuenta al llegar a 5. */
+async function registerFailedAttempt(user: { id: string; failedLoginAttempts: number }): Promise<void> {
+  const attempts = user.failedLoginAttempts + 1;
+  const lock = attempts >= MAX_FAILED_ATTEMPTS;
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      failedLoginAttempts: lock ? 0 : attempts,
+      lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000) : null,
+    },
+  });
+}
+
+function isLocked(user: { lockedUntil: Date | null }): boolean {
+  return Boolean(user.lockedUntil && user.lockedUntil > new Date());
+}
+
+/**
+ * bcrypt solo usa los primeros 72 bytes: una contraseña más larga se aceptaría
+ * aunque el final fuera distinto. Se rechaza al registrarse.
+ */
+const BCRYPT_MAX_BYTES = 72;
+
 function publicUser(user: { id: string; email: string; name: string; role: string }) {
   return { id: user.id, email: user.email, name: user.name, role: user.role };
 }
@@ -96,6 +119,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const errors = getPasswordErrors(password);
+  if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) errors.push(`${BCRYPT_MAX_BYTES} bytes máximo`);
   if (errors.length > 0) {
     res.status(400).json({ error: 'Contraseña débil', details: errors });
     return;
@@ -127,7 +151,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 export const login = async (req: Request, res: Response): Promise<void> => {
   const email = normalizeEmail(req.body?.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  const genericError = 'Correo o contraseña incorrectos';
+  // Mismo mensaje para correo inexistente, contraseña mala y cuenta bloqueada: no se puede enumerar cuentas
+  const genericError = 'Correo o contraseña incorrectos. Tras 5 intentos fallidos la cuenta se bloquea 15 minutos.';
 
   if (!email || !password) {
     res.status(400).json({ error: genericError });
@@ -135,33 +160,24 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
+  // bcrypt se ejecuta siempre (también si la cuenta está bloqueada) para que el tiempo de respuesta no delate nada
+  const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
 
-  if (user?.lockedUntil && user.lockedUntil > new Date()) {
+  if (user && isLocked(user)) {
+    // Durante el bloqueo no se dice si la contraseña era correcta (evita adivinarla mientras dura)
     await logEvent(req, { action: AuditAction.LOGIN_LOCKED, userId: user.id });
-    res.status(423).json({ error: 'Cuenta bloqueada temporalmente por intentos fallidos. Intenta más tarde.' });
+    res.status(401).json({ error: genericError });
     return;
   }
 
-  const valid = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
-
   if (!user || !user.passwordHash || !valid || !user.isActive) {
-    if (user) {
-      const attempts = user.failedLoginAttempts + 1;
-      const lock = attempts >= MAX_FAILED_ATTEMPTS;
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          failedLoginAttempts: lock ? 0 : attempts,
-          lockedUntil: lock ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000) : null,
-        },
-      });
-    }
+    if (user) await registerFailedAttempt(user);
     await logEvent(req, { action: AuditAction.LOGIN_FAILED, userId: user?.id, details: { email } });
     res.status(401).json({ error: genericError });
     return;
   }
 
-  await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } });
+  // El contador de fallos se reinicia hasta pasar también el código (ver verifyMfa)
   if (await blockIfNotApproved(req, res, user, 'local')) return;
   await requireSecondFactor(req, res, user);
 };
@@ -225,6 +241,11 @@ export const verifyMfa = async (req: Request, res: Response): Promise<void> => {
   const result = await verifyChallenge(challengeId, code);
   if (!result.ok) {
     await logEvent(req, { action: AuditAction.MFA_FAILED, userId: result.userId, details: { reason: result.reason } });
+    // Los códigos incorrectos también cuentan para el bloqueo de la cuenta (no solo por IP)
+    if (result.reason === 'CODIGO_INCORRECTO' || result.reason === 'DEMASIADOS_INTENTOS') {
+      const owner = await prisma.user.findUnique({ where: { id: result.userId! } });
+      if (owner) await registerFailedAttempt(owner);
+    }
     const messages: Record<typeof result.reason, string> = {
       NO_EXISTE: 'El código ya no es válido. Inicia sesión de nuevo.',
       USADO: 'El código ya no es válido. Inicia sesión de nuevo.',
@@ -237,11 +258,17 @@ export const verifyMfa = async (req: Request, res: Response): Promise<void> => {
   }
 
   const user = await prisma.user.findUnique({ where: { id: result.userId } });
+  if (user && isLocked(user)) {
+    await logEvent(req, { action: AuditAction.LOGIN_LOCKED, userId: user.id, details: { step: 'mfa' } });
+    res.status(401).json({ error: 'Cuenta bloqueada temporalmente por intentos fallidos. Inicia sesión más tarde.' });
+    return;
+  }
   if (!user || !user.isActive || user.status !== 'APPROVED') {
     res.status(403).json({ error: 'Cuenta desactivada' });
     return;
   }
 
+  await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null } });
   await logEvent(req, { action: AuditAction.MFA_SUCCESS, userId: user.id });
   await logEvent(req, { action: AuditAction.LOGIN_SUCCESS, userId: user.id, details: { mfa: 'email' } });
   res.status(200).json({ user: publicUser(user), accessToken: signAccessToken(user) });
