@@ -39,10 +39,21 @@ export interface VaultSecret {
   title: string;
   environment: "PRODUCCION" | "DESARROLLO" | "PERSONAL";
   url: string | null;
+  username: string | null;
   createdAt: string;
   passwordChangedAt: string;
   daysSinceChange: number;
   isExpired: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN" | "USER";
+  isActive: boolean;
+  createdAt: string;
+  _count: { secrets: number };
 }
 
 export interface AuditLogEntry {

@@ -1,5 +1,5 @@
 "use client";
-import { Copy, Server, AlertCircle, Eye, EyeOff, RotateCw, Trash2, ExternalLink } from "lucide-react";
+import { Copy, Server, UserRound, AlertCircle, Eye, EyeOff, RotateCw, Trash2, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import type { VaultSecret } from "@/lib/api";
 
@@ -19,6 +19,7 @@ interface SecretCardProps {
 
 export default function SecretCard({ secret, onReveal, onRotate, onDelete }: SecretCardProps) {
   const [copied, setCopied] = useState(false);
+  const [userCopied, setUserCopied] = useState(false);
   const [visible, setVisible] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,6 +35,13 @@ export default function SecretCard({ secret, onReveal, onRotate, onDelete }: Sec
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleCopyUser = async () => {
+    if (!secret.username) return;
+    await navigator.clipboard.writeText(secret.username);
+    setUserCopied(true);
+    setTimeout(() => setUserCopied(false), 2000);
   };
 
   const handleToggle = async () => {
@@ -68,6 +76,17 @@ export default function SecretCard({ secret, onReveal, onRotate, onDelete }: Sec
             >
               {secret.url} <ExternalLink className="w-3 h-3 shrink-0" />
             </a>
+          )}
+          {secret.username && (
+            <button
+              onClick={handleCopyUser}
+              title="Copiar usuario"
+              className="text-slate-300 hover:text-white text-sm mt-1 flex items-center gap-1.5 max-w-full cursor-pointer"
+            >
+              <UserRound className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+              <span className="truncate font-mono">{secret.username}</span>
+              <span className="text-xs text-slate-500 shrink-0">{userCopied ? "Copiado" : <Copy className="w-3 h-3" />}</span>
+            </button>
           )}
           <p className="text-slate-500 text-xs mt-1">Último cambio hace {secret.daysSinceChange} días</p>
         </div>

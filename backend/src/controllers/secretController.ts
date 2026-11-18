@@ -32,7 +32,7 @@ function parseUrl(value: unknown): string | null | undefined {
 
 /** Formato público de un secreto: NUNCA incluye la contraseña. */
 function toPublic(secret: {
-  id: string; title: string; environment: Environment; url: string | null;
+  id: string; title: string; environment: Environment; url: string | null; username: string | null;
   createdAt: Date; updatedAt: Date; passwordChangedAt: Date;
 }) {
   return {
@@ -40,6 +40,7 @@ function toPublic(secret: {
     title: secret.title,
     environment: secret.environment,
     url: secret.url,
+    username: secret.username,
     createdAt: secret.createdAt,
     updatedAt: secret.updatedAt,
     passwordChangedAt: secret.passwordChangedAt,
@@ -69,7 +70,7 @@ async function findOwnedSecret(req: Request, res: Response) {
 
 /** POST /api/secrets */
 export const createSecret = async (req: Request, res: Response): Promise<void> => {
-  const { title, environment, password, url } = req.body ?? {};
+  const { title, environment, password, url, username } = req.body ?? {};
 
   const cleanTitle = typeof title === 'string' ? title.trim() : '';
   const parsedEnv = parseEnvironment(environment);
@@ -77,6 +78,10 @@ export const createSecret = async (req: Request, res: Response): Promise<void> =
 
   if (!cleanTitle || cleanTitle.length > 120 || !parsedEnv || typeof password !== 'string') {
     res.status(400).json({ error: 'Faltan campos obligatorios o tienen un formato inválido' });
+    return;
+  }
+  if (username !== undefined && username !== null && (typeof username !== 'string' || username.trim().length > 255)) {
+    res.status(400).json({ error: 'El usuario debe ser texto de máximo 255 caracteres' });
     return;
   }
   if (parsedUrl === undefined) {
@@ -96,6 +101,7 @@ export const createSecret = async (req: Request, res: Response): Promise<void> =
       title: cleanTitle,
       environment: parsedEnv,
       url: parsedUrl,
+      username: typeof username === 'string' && username.trim() ? username.trim() : null,
       encryptedData,
       iv,
       userId: req.user!.id,

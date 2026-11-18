@@ -44,6 +44,8 @@ model Secret {
   title       String
   environment Environment @default(PRODUCCION)
   url         String?
+  // Usuario o login de la cuenta guardada (la contraseña sí va cifrada)
+  username    String?
 
   encryptedData String
   iv            String // Vector de Inicialización: Crítico para la seguridad de AES-256

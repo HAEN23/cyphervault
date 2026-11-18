@@ -8,6 +8,7 @@ import LoginScreen from "@/components/LoginScreen";
 import MfaForm from "@/components/MfaForm";
 import AuditTable from "@/components/AuditTable";
 import StatChart from "@/components/StatChart";
+import UserAdminTable from "@/components/UserAdminTable";
 import { useTabSession } from "@/lib/useTabSession";
 import { apiFetch, loadDashboard, type AuditLogEntry, type DashboardData, type SeriesPoint, type Stats, type VaultSecret } from "@/lib/api";
 
@@ -81,6 +82,7 @@ export default function Dashboard() {
           title: values.title,
           environment: values.environment,
           url: values.url || null,
+          username: values.username || null,
           password: values.password,
         }),
       });
@@ -191,6 +193,13 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      {isAdmin && (
+        <div className="mt-12">
+          <h2 className="text-xl font-bold text-white mb-6">Administración de Usuarios</h2>
+          <UserAdminTable token={token} currentEmail={session.user?.email ?? null} onChanged={refresh} />
+        </div>
+      )}
 
       <div className="mt-12">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">

@@ -8,6 +8,7 @@ export interface SecretFormValues {
   title: string;
   environment: VaultSecret["environment"];
   url: string;
+  username: string;
   password: string;
 }
 
@@ -22,6 +23,7 @@ export default function SecretFormModal({ rotating, onClose, onSubmit }: Props) 
   const [title, setTitle] = useState("");
   const [environment, setEnvironment] = useState<VaultSecret["environment"]>("PRODUCCION");
   const [url, setUrl] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -42,7 +44,7 @@ export default function SecretFormModal({ rotating, onClose, onSubmit }: Props) 
     setSaving(true);
     setError(null);
     try {
-      await onSubmit({ title: title.trim(), environment, url: url.trim(), password });
+      await onSubmit({ title: title.trim(), environment, url: url.trim(), username: username.trim(), password });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar");
     } finally {
@@ -87,6 +89,19 @@ export default function SecretFormModal({ rotating, onClose, onSubmit }: Props) 
                   onChange={(e) => setTitle(e.target.value)}
                   className={inputClass}
                   placeholder="Ej. Servidor Linux Producción"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1.5">Usuario / login (opcional)</label>
+                <input
+                  type="text"
+                  value={username}
+                  maxLength={255}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="off"
+                  className={inputClass}
+                  placeholder="Ej. admin o correo@miempresa.com"
                 />
               </div>
 
