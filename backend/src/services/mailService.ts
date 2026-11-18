@@ -40,5 +40,8 @@ export async function sendMfaCode(to: string, name: string, code: string): Promi
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  let out = '';
+  for (const ch of value) out += map[ch] ?? ch;
+  return out;
 }
