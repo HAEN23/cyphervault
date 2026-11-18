@@ -9,6 +9,13 @@ const H = 90;
 export default function StatChart({ data, unit }: { data: SeriesPoint[]; unit: "hour" | "day" }) {
   const [hover, setHover] = useState<number | null>(null);
   if (data.length === 0) return null;
+  if (data.every((p) => p.v === 0)) {
+    return (
+      <div className="h-24 mt-2 flex items-center justify-center rounded-lg border border-dashed border-slate-800 text-sm text-slate-500">
+        Sin eventos en este periodo
+      </div>
+    );
+  }
 
   const max = Math.max(1, ...data.map((p) => p.v));
   const slot = W / data.length;
