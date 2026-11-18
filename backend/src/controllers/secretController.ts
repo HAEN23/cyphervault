@@ -83,8 +83,8 @@ export const createSecret = async (req: Request, res: Response): Promise<void> =
     res.status(400).json({ error: 'La URL debe empezar con http:// o https://' });
     return;
   }
-  const errors = getPasswordErrors(password);
-  if (errors.length > 0 || password.length > 1024) {
+  const errors = getPasswordErrors(password, 1024);
+  if (errors.length > 0) {
     res.status(400).json({ error: 'Contraseña débil', details: errors });
     return;
   }
@@ -137,8 +137,8 @@ export const rotateSecret = async (req: Request, res: Response): Promise<void> =
     res.status(400).json({ error: 'Falta la nueva contraseña' });
     return;
   }
-  const errors = getPasswordErrors(password);
-  if (errors.length > 0 || password.length > 1024) {
+  const errors = getPasswordErrors(password, 1024);
+  if (errors.length > 0) {
     res.status(400).json({ error: 'Contraseña débil', details: errors });
     return;
   }

@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { signAccessToken } from '../services/tokenService.js';
 import { AuditAction, logEvent } from '../services/auditService.js';
 import { getPasswordErrors } from '../utils/passwordPolicy.js';
+import { isEmail, isNumericCode, isUuid, MAX_EMAIL_LENGTH } from '../utils/validators.js';
 import { startChallenge, resendChallenge, verifyChallenge } from '../services/mfaService.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -51,9 +52,10 @@ async function requireSecondFactor(
 }
 
 function normalizeEmail(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
+  // Se corta la longitud antes de cualquier otra operación sobre la entrada del usuario
+  if (typeof value !== 'string' || value.length > MAX_EMAIL_LENGTH + 64) return null;
   const email = value.trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : null;
+  return isEmail(email) ? email : null;
 }
 
 /** POST /api/auth/register: alta local con contraseña cifrada con bcrypt. */
@@ -67,7 +69,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const errors = getPasswordErrors(password);
-  if (errors.length > 0 || password.length > 128) {
+  if (errors.length > 0) {
     res.status(400).json({ error: 'Contraseña débil', details: errors });
     return;
   }
@@ -179,9 +181,9 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
 /** POST /api/auth/mfa/verify: paso 2. Si el código es correcto, entrega el JWT de la API. */
 export const verifyMfa = async (req: Request, res: Response): Promise<void> => {
   const challengeId = typeof req.body?.challengeId === 'string' ? req.body.challengeId : '';
-  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const code = typeof req.body?.code === 'string' && req.body.code.length <= 32 ? req.body.code.trim() : '';
 
-  if (!/^[0-9a-f-]{36}$/i.test(challengeId) || !/^\d{6}$/.test(code)) {
+  if (!isUuid(challengeId) || !isNumericCode(code)) {
     res.status(400).json({ error: 'Código inválido' });
     return;
   }
@@ -214,7 +216,7 @@ export const verifyMfa = async (req: Request, res: Response): Promise<void> => {
 /** POST /api/auth/mfa/resend: manda un código nuevo para el mismo reto (máximo 3 envíos). */
 export const resendMfa = async (req: Request, res: Response): Promise<void> => {
   const challengeId = typeof req.body?.challengeId === 'string' ? req.body.challengeId : '';
-  if (!/^[0-9a-f-]{36}$/i.test(challengeId)) {
+  if (!isUuid(challengeId)) {
     res.status(400).json({ error: 'Reto inválido' });
     return;
   }
