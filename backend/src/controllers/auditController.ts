@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 import { BLOCKED_ACTIONS } from '../services/auditService.js';
+import { countByBucket, secretDailySeries, STEP } from '../utils/statsSeries.js';
 
 const auditSelect = {
   id: true,
@@ -57,12 +58,32 @@ export const getStats = async (req: Request, res: Response): Promise<void> => {
   const rotationLimit = new Date(Date.now() - env.rotationDays * 24 * 60 * 60 * 1000);
   const scope: Prisma.AuditLogWhereInput = isAdmin ? {} : { userId: req.user!.id };
 
-  const [totalProtected, atRisk, blockedAttempts, access24h] = await Promise.all([
-    prisma.secret.count({ where: { userId: req.user!.id, deletedAt: null } }),
-    prisma.secret.count({ where: { userId: req.user!.id, deletedAt: null, passwordChangedAt: { lt: rotationLimit } } }),
-    prisma.auditLog.count({ where: { ...scope, action: { in: BLOCKED_ACTIONS }, createdAt: { gte: since24h } } }),
-    prisma.auditLog.count({ where: { ...scope, createdAt: { gte: since24h } } }),
+  const now = new Date();
+  const [secrets, events] = await Promise.all([
+    prisma.secret.findMany({
+      where: { userId: req.user!.id, OR: [{ deletedAt: null }, { deletedAt: { gte: new Date(now.getTime() - 14 * STEP.DAY) } }] },
+      select: { createdAt: true, deletedAt: true, passwordChangedAt: true },
+    }),
+    // shortcut: trae los eventos de 24 h a memoria para agruparlos por hora; si la bitácora global crece mucho, agrupar en SQL con date_trunc
+    prisma.auditLog.findMany({ where: { ...scope, createdAt: { gte: since24h } }, select: { action: true, createdAt: true } }),
   ]);
 
-  res.status(200).json({ totalProtected, atRisk, blockedAttempts, access24h, scope: isAdmin ? 'global' : 'personal' });
+  const active = secrets.filter((s) => !s.deletedAt);
+  const blocked = events.filter((e) => (BLOCKED_ACTIONS as string[]).includes(e.action));
+  const { protectedSeries, atRiskSeries } = secretDailySeries(secrets, now, 14, env.rotationDays);
+
+  res.status(200).json({
+    totalProtected: active.length,
+    atRisk: active.filter((s) => s.passwordChangedAt < rotationLimit).length,
+    blockedAttempts: blocked.length,
+    access24h: events.length,
+    scope: isAdmin ? 'global' : 'personal',
+    // Series para las gráficas del panel: 14 días (secretos) y 24 horas (eventos)
+    history: {
+      totalProtected: protectedSeries,
+      atRisk: atRiskSeries,
+      blockedAttempts: countByBucket(blocked.map((e) => e.createdAt), now, 24, STEP.HOUR),
+      access24h: countByBucket(events.map((e) => e.createdAt), now, 24, STEP.HOUR),
+    },
+  });
 };

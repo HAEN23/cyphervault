@@ -7,8 +7,9 @@ import SecretFormModal, { type SecretFormValues } from "@/components/SecretFormM
 import LoginScreen from "@/components/LoginScreen";
 import MfaForm from "@/components/MfaForm";
 import AuditTable from "@/components/AuditTable";
+import StatChart from "@/components/StatChart";
 import { useTabSession } from "@/lib/useTabSession";
-import { apiFetch, loadDashboard, type AuditLogEntry, type DashboardData, type Stats, type VaultSecret } from "@/lib/api";
+import { apiFetch, loadDashboard, type AuditLogEntry, type DashboardData, type SeriesPoint, type Stats, type VaultSecret } from "@/lib/api";
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -160,10 +161,10 @@ export default function Dashboard() {
 
       {/* Indicadores calculados por la API (/api/stats) */}
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-        <StatCard icon={<Lock />} title="Total Protegidas" value={stats?.totalProtected} color="text-emerald-500" />
-        <StatCard icon={<AlertTriangle />} title="Credenciales en Riesgo" value={stats?.atRisk} color="text-red-500" hint="Más de 90 días sin rotar" />
-        <StatCard icon={<Shield />} title="Intentos Bloqueados" value={stats?.blockedAttempts} color="text-orange-500" hint={stats?.scope === "global" ? "Últimas 24 h · toda la plataforma" : "Últimas 24 h"} />
-        <StatCard icon={<Activity />} title="Accesos 24h" value={stats?.access24h} color="text-blue-500" hint={stats?.scope === "global" ? "Toda la plataforma" : undefined} />
+        <StatCard icon={<Lock />} title="Total Protegidas" value={stats?.totalProtected} color="text-emerald-500" series={stats?.history?.totalProtected} unit="day" chartTitle="Activas por día · últimos 14 días" />
+        <StatCard icon={<AlertTriangle />} title="Credenciales en Riesgo" value={stats?.atRisk} color="text-red-500" hint="Más de 90 días sin rotar" series={stats?.history?.atRisk} unit="day" chartTitle="En riesgo por día · últimos 14 días" />
+        <StatCard icon={<Shield />} title="Intentos Bloqueados" value={stats?.blockedAttempts} color="text-orange-500" hint={stats?.scope === "global" ? "Últimas 24 h · toda la plataforma" : "Últimas 24 h"} series={stats?.history?.blockedAttempts} unit="hour" chartTitle="Bloqueos por hora · últimas 24 h" />
+        <StatCard icon={<Activity />} title="Accesos 24h" value={stats?.access24h} color="text-blue-500" hint={stats?.scope === "global" ? "Toda la plataforma" : undefined} series={stats?.history?.access24h} unit="hour" chartTitle="Eventos por hora · últimas 24 h" />
       </section>
 
       <section>
@@ -225,15 +226,28 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ icon, title, value, color, hint }: { icon: React.ReactNode; title: string; value?: number; color: string; hint?: string }) {
+function StatCard({ icon, title, value, color, hint, series, unit, chartTitle }: {
+  icon: React.ReactNode; title: string; value?: number; color: string; hint?: string;
+  series?: SeriesPoint[]; unit: "hour" | "day"; chartTitle: string;
+}) {
   return (
-    <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl flex items-center gap-4">
+    // Al pasar el cursor (o enfocar con teclado) aparece la gráfica con el historial del indicador
+    <div tabIndex={series ? 0 : undefined} className="group relative bg-slate-900 border border-slate-800 p-6 rounded-xl flex items-center gap-4 hover:border-slate-600 focus:outline-none focus-visible:border-slate-500 transition-colors">
       <div className={`p-3 rounded-lg bg-slate-950 border border-slate-800 ${color}`}>{icon}</div>
       <div>
         <p className="text-slate-400 text-sm font-medium">{title}</p>
         <p className="text-2xl font-bold text-white mt-1">{value ?? "—"}</p>
         {hint && <p className="text-xs text-slate-500 mt-0.5">{hint}</p>}
       </div>
+      {series && series.length > 0 && (
+        <div className={`pointer-events-none invisible opacity-0 translate-y-1 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 group-focus:visible group-focus:opacity-100 group-focus:translate-y-0 transition-all duration-150 absolute left-0 right-0 top-full pt-2 z-20 ${color}`}>
+          {/* pt-2 en lugar de margen: así el cursor no pierde el hover al bajar a la gráfica */}
+          <div className="bg-slate-950 border border-slate-700 rounded-xl p-4 shadow-xl shadow-black/40">
+            <p className="text-sm text-slate-300 font-medium mb-1">{chartTitle}</p>
+            <StatChart data={series} unit={unit} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
