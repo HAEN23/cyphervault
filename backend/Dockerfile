@@ -3,9 +3,9 @@ FROM node:22-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# El schema va antes de npm ci: el postinstall corre prisma generate
 COPY prisma ./prisma
-RUN npx prisma generate
+RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev
