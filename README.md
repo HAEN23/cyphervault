@@ -59,4 +59,8 @@ Ver [pentest/README.md](pentest/README.md).
 
 ## Licencia
 
-Distribuido bajo la licencia MIT. Consulta el archivo [LICENSE](LICENSE).
+Distribuido bajo la **Licencia MIT**. Consulta el archivo [LICENSE](LICENSE).
+
+Se eligió la Licencia MIT porque otorga amplia flexibilidad para que la comunidad académica, docentes y auditores de seguridad puedan estudiar, ejecutar, modificar y distribuir los módulos de la solución con fines educativos y de evaluación técnica sin restricciones comerciales, exigiendo únicamente la conservación del aviso de derechos de autor y la exención de garantías.
+
+© 2026 Heber Alexander Escobar Nuricumbo · Universidad Politécnica de Chiapas
