@@ -56,3 +56,7 @@ Cualquier otra cuenta nueva (con correo o con Google) queda **pendiente** y no p
 ## Pruebas de seguridad
 
 Ver [pentest/README.md](pentest/README.md).
+
+## Licencia
+
+Distribuido bajo la licencia MIT. Consulta el archivo [LICENSE](LICENSE).
